@@ -501,6 +501,7 @@ func (peers *Peers) applyDecodedUpdate(decodedUpdate []*Peer, decodedConns [][]c
 							(!newPeer.HasShortID || peer.HasShortID)))) {
 				continue
 			}
+			peer.mu.Lock()
 			peer.Version = newPeer.Version
 			peer.UID = newPeer.UID
 			peer.NickName = newPeer.NickName
@@ -512,6 +513,7 @@ func (peers *Peers) applyDecodedUpdate(decodedUpdate []*Peer, decodedConns [][]c
 				peer.HasShortID = newPeer.HasShortID
 				peers.addByShortID(peer, pending)
 			}
+			peer.mu.Unlock()
 			newUpdate[name] = struct{}{}
 		}
 	}

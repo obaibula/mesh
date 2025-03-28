@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync"
 )
 
 // Peer is a local representation of a peer, including connections to other
@@ -15,6 +16,7 @@ type Peer struct {
 	peerSummary
 	localRefCount uint64 // maintained by Peers
 	connections   map[PeerName]Connection
+	mu            *sync.RWMutex
 }
 
 type peerSummary struct {
@@ -42,6 +44,7 @@ func newPeerFromSummary(summary peerSummary) *Peer {
 		Name:        PeerNameFromBin(summary.NameByte),
 		peerSummary: summary,
 		connections: make(map[PeerName]Connection),
+		mu:          &sync.RWMutex{},
 	}
 }
 
@@ -62,6 +65,8 @@ func newPeerPlaceholder(name PeerName) *Peer {
 
 // String returns the peer name and nickname.
 func (peer *Peer) String() string {
+	defer peer.mu.RUnlock()
+	peer.mu.RLock()
 	return fmt.Sprint(peer.Name, "(", peer.NickName, ")")
 }
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -75,6 +76,7 @@ type LocalConnection struct {
 	finished        <-chan struct{} // closed to signal that actorLoop has finished
 	senders         *gossipSenders
 	logger          Logger
+	mu              *sync.RWMutex
 }
 
 // If the connection is successful, it will end up in the local peer's
@@ -94,6 +96,7 @@ func startLocalConnection(connRemote *remoteConnection, tcpConn *net.TCPConn, ro
 		errorChan:        errorChan,
 		finished:         finished,
 		logger:           logger,
+		mu:               &sync.RWMutex{},
 	}
 	conn.senders = newGossipSenders(conn, finished)
 	go conn.run(errorChan, finished, acceptNewPeer)
@@ -119,6 +122,8 @@ func (conn *LocalConnection) breakTie(dupConn ourConnection) connectionTieBreak 
 // Established returns true if the connection is established.
 // TODO(pb): data race?
 func (conn *LocalConnection) isEstablished() bool {
+	defer conn.mu.RUnlock()
+	conn.mu.RLock()
 	return conn.established
 }
 
@@ -355,7 +360,9 @@ func (conn *LocalConnection) actorLoop(errorChan <-chan error) (err error) {
 			case <-conn.heartbeatTCP.C:
 				err = conn.sendSimpleProtocolMsg(ProtocolHeartbeat)
 			case <-fwdEstablishedChan:
+				conn.mu.Lock()
 				conn.established = true
+				conn.mu.Unlock()
 				fwdEstablishedChan = nil
 				conn.router.Ourself.doConnectionEstablished(conn)
 			case err = <-errorChan:
